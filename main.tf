@@ -16,10 +16,10 @@ locals {
   # so default the NLB ingress to the VPC CIDR unless the caller overrides.
   nlb_ingress_cidrs = length(var.nlb_ingress_cidrs) > 0 ? var.nlb_ingress_cidrs : [data.aws_vpc.this.cidr_block]
 
-  common_tags = merge(var.tags, {
+  common_tags = merge({
     ManagedBy = "terraform"
     Module    = "terraform-aws-drata-privatelink"
-  })
+  }, var.tags)
 }
 
 data "aws_vpc" "this" {
