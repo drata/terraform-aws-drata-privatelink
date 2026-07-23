@@ -1,0 +1,107 @@
+variable "name" {
+  description = "Base name used to prefix all resources. Keep short: it seeds NLB/target-group names (32-char AWS limit)."
+  type        = string
+  default     = "drata-privatelink"
+
+  validation {
+    condition     = length(var.name) <= 24
+    error_message = "name must be <= 24 chars so derived resource names stay under the 32-char AWS limit."
+  }
+}
+
+variable "vpc_id" {
+  description = "ID of the VPC that hosts the target service and where the internal NLB is provisioned."
+  type        = string
+}
+
+variable "subnet_ids" {
+  description = "Subnet IDs (one per AZ) the internal NLB attaches to. These must be able to reach the target service."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.subnet_ids) >= 1
+    error_message = "Provide at least one subnet ID for the NLB."
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Target: the privately-hosted service to expose (any internal HTTP/TCP service)
+# ---------------------------------------------------------------------------
+variable "target_instance_id" {
+  description = "EC2 instance ID of the privately-hosted service to register as the NLB target."
+  type        = string
+}
+
+variable "target_port" {
+  description = "Port the target service listens on. The NLB forwards TCP to this port on the instance."
+  type        = number
+  default     = 443
+}
+
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+variable "health_check_protocol" {
+  description = "Health check protocol for the target group. TCP is the safe default; use HTTP/HTTPS to probe an application health path."
+  type        = string
+  default     = "TCP"
+
+  validation {
+    condition     = contains(["TCP", "HTTP", "HTTPS"], var.health_check_protocol)
+    error_message = "health_check_protocol must be one of TCP, HTTP, HTTPS."
+  }
+}
+
+variable "health_check_path" {
+  description = "Health check path, only used when health_check_protocol is HTTP/HTTPS (e.g. /healthz)."
+  type        = string
+  default     = "/"
+}
+
+# ---------------------------------------------------------------------------
+# Network load balancer
+# ---------------------------------------------------------------------------
+variable "listener_port" {
+  description = "TCP port the NLB listens on. Consumers reach the service on this port via the interface endpoint."
+  type        = number
+  default     = 443
+}
+
+variable "enable_cross_zone_load_balancing" {
+  description = "Enable cross-zone load balancing on the NLB. Recommended when the target instance is in a single AZ."
+  type        = bool
+  default     = true
+}
+
+variable "nlb_ingress_cidrs" {
+  description = "CIDR blocks allowed to reach the NLB listener. Defaults to the VPC CIDR (PrivateLink consumer traffic arrives from the endpoint ENIs inside the VPC)."
+  type        = list(string)
+  default     = []
+}
+
+# ---------------------------------------------------------------------------
+# VPC Endpoint Service (PrivateLink provider side)
+# ---------------------------------------------------------------------------
+variable "acceptance_required" {
+  description = "Require manual acceptance of endpoint connection requests. Keep true so you explicitly approve each consumer."
+  type        = bool
+  default     = true
+}
+
+variable "allowed_principals" {
+  description = "IAM principal ARNs permitted to discover/connect to the endpoint service (e.g. the consumer's Autopilot role ARN)."
+  type        = list(string)
+  default     = []
+}
+
+variable "supported_ip_address_types" {
+  description = "IP address types the endpoint service supports."
+  type        = list(string)
+  default     = ["ipv4"]
+}
+
+variable "tags" {
+  description = "Tags applied to all created resources."
+  type        = map(string)
+  default     = {}
+}

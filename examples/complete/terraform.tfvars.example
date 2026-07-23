@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and fill in your own values.
+
+region             = "us-west-2"
+name               = "privatelink-example"
+vpc_id             = "vpc-xxxxxxxxxxxxxxxxx"
+subnet_ids         = ["subnet-aaaaaaaa", "subnet-bbbbbbbb"] # one per AZ, must reach the target
+target_instance_id = "i-xxxxxxxxxxxxxxxxx"
+target_port        = 443
+
+# For a real consumer: keep acceptance_required = true and scope the principal.
+acceptance_required = true
+allowed_principals = [
+  # "arn:aws:iam::<consumer-account-id>:role/<autopilot-role>"
+]
+
+tags = {
+  Project = "privatelink"
+}

@@ -1,0 +1,24 @@
+# Terraform
+.terraform/
+.terraform.tfstate.lock.info
+# Lock file: omitted for a reusable module (don't pin consumers' provider versions)
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local variable files (keep *.tfvars.example)
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Plans / overrides
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Editor / OS
+.DS_Store
