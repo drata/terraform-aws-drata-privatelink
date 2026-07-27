@@ -33,8 +33,9 @@ module "privatelink" {
   target_instance_id = "i-0123456789abcdef0"
   target_port        = 443
 
-  # Fill in once the consumer provides their principal ARN.
-  allowed_principals = ["arn:aws:iam::<consumer-account-id>:role/<autopilot-role>"]
+  # Drata's connecting account root — who may create the interface endpoint.
+  # Defaults to this if omitted; acceptance_required still gates each connection.
+  allowed_principals = ["arn:aws:iam::269135526815:root"]
 
   tags = { Project = "privatelink" }
 }
@@ -74,18 +75,19 @@ A runnable example lives in [`examples/complete`](./examples/complete).
      documentation-generator workflow. Do not edit by hand. -->
 
 <!-- BEGIN_TF_DOCS -->
+
 ## Requirements
 
-| Name | Version |
-| ---- | ------- |
-| terraform | >= 1.5.0 |
-| aws | >= 5.30.0 |
+| Name      | Version   |
+| --------- | --------- |
+| terraform | >= 1.5.0  |
+| aws       | >= 5.30.0 |
 
 ## Providers
 
-| Name | Version |
-| ---- | ------- |
-| aws | >= 5.30.0 |
+| Name | Version   |
+| ---- | --------- |
+| aws  | >= 5.30.0 |
 
 ## Modules
 
@@ -93,49 +95,50 @@ No modules.
 
 ## Resources
 
-| Name | Type |
-| ---- | ---- |
-| [aws_lb.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb) | resource |
-| [aws_lb_listener.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener) | resource |
-| [aws_lb_target_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group) | resource |
-| [aws_lb_target_group_attachment.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) | resource |
-| [aws_security_group.nlb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
-| [aws_vpc_endpoint_service.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service) | resource |
-| [aws_vpc_security_group_egress_rule.nlb_to_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
-| [aws_vpc_security_group_ingress_rule.nlb_listener](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
-| [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
+| Name                                                                                                                                                            | Type        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| [aws_lb.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb)                                                                   | resource    |
+| [aws_lb_listener.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener)                                                 | resource    |
+| [aws_lb_target_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group)                                         | resource    |
+| [aws_lb_target_group_attachment.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment)                   | resource    |
+| [aws_security_group.nlb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group)                                            | resource    |
+| [aws_vpc_endpoint_service.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service)                               | resource    |
+| [aws_vpc_security_group_egress_rule.nlb_to_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule)  | resource    |
+| [aws_vpc_security_group_ingress_rule.nlb_listener](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource    |
+| [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc)                                                              | data source |
 
 ## Inputs
 
-| Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
-| subnet\_ids | Subnet IDs (one per AZ) the internal NLB attaches to. These must be able to reach the target service. | `list(string)` | n/a | yes |
-| target\_instance\_id | EC2 instance ID of the privately-hosted service to register as the NLB target. | `string` | n/a | yes |
-| vpc\_id | ID of the VPC that hosts the target service and where the internal NLB is provisioned. | `string` | n/a | yes |
-| acceptance\_required | Require manual acceptance of endpoint connection requests. Keep true so you explicitly approve each consumer. | `bool` | `true` | no |
-| allowed\_principals | IAM principal ARNs allowed to discover the endpoint service and create an interface endpoint to it. Set to the connecting account root, e.g. Drata prod: arn:aws:iam::269135526815:root. This gates connection creation only, not the data path — each connection is still gated by acceptance\_required. | `list(string)` | <pre>[<br/>  "arn:aws:iam::269135526815:root"<br/>]</pre> | no |
-| enable\_cross\_zone\_load\_balancing | Enable cross-zone load balancing on the NLB. Recommended when the target instance is in a single AZ. | `bool` | `true` | no |
-| health\_check\_path | Health check path, only used when health\_check\_protocol is HTTP/HTTPS (e.g. /healthz). | `string` | `"/"` | no |
-| health\_check\_protocol | Health check protocol for the target group. TCP is the safe default; use HTTP/HTTPS to probe an application health path. | `string` | `"TCP"` | no |
-| listener\_port | TCP port the NLB listens on. Consumers reach the service on this port via the interface endpoint. | `number` | `443` | no |
-| name | Base name used to prefix all resources. Keep short: it seeds NLB/target-group names (32-char AWS limit). | `string` | `"drata-privatelink"` | no |
-| nlb\_ingress\_cidrs | CIDR blocks allowed to reach the NLB listener. Defaults to the VPC CIDR (PrivateLink consumer traffic arrives from the endpoint ENIs inside the VPC). | `list(string)` | `[]` | no |
-| supported\_ip\_address\_types | IP address types the endpoint service supports. | `list(string)` | <pre>[<br/>  "ipv4"<br/>]</pre> | no |
-| tags | Tags applied to all created resources. | `map(string)` | `{}` | no |
-| target\_port | Port the target service listens on. The NLB forwards TCP to this port on the instance. | `number` | `443` | no |
+| Name                             | Description                                                                                                                                                                                                                                                                                              | Type           | Default                                                  | Required |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------- | :------: |
+| subnet_ids                       | Subnet IDs (one per AZ) the internal NLB attaches to. These must be able to reach the target service.                                                                                                                                                                                                    | `list(string)` | n/a                                                      |   yes    |
+| target_instance_id               | EC2 instance ID of the privately-hosted service to register as the NLB target.                                                                                                                                                                                                                           | `string`       | n/a                                                      |   yes    |
+| vpc_id                           | ID of the VPC that hosts the target service and where the internal NLB is provisioned.                                                                                                                                                                                                                   | `string`       | n/a                                                      |   yes    |
+| acceptance_required              | Require manual acceptance of endpoint connection requests. Keep true so you explicitly approve each consumer.                                                                                                                                                                                            | `bool`         | `true`                                                   |    no    |
+| allowed_principals               | IAM principal ARNs allowed to discover the endpoint service and create an interface endpoint to it. Set to the connecting account root, e.g. Drata prod: arn:aws:iam::269135526815:root. This gates connection creation only, not the data path — each connection is still gated by acceptance_required. | `list(string)` | <pre>[<br/> "arn:aws:iam::269135526815:root"<br/>]</pre> |    no    |
+| enable_cross_zone_load_balancing | Enable cross-zone load balancing on the NLB. Recommended when the target instance is in a single AZ.                                                                                                                                                                                                     | `bool`         | `true`                                                   |    no    |
+| health_check_path                | Health check path, only used when health_check_protocol is HTTP/HTTPS (e.g. /healthz).                                                                                                                                                                                                                   | `string`       | `"/"`                                                    |    no    |
+| health_check_protocol            | Health check protocol for the target group. TCP is the safe default; use HTTP/HTTPS to probe an application health path.                                                                                                                                                                                 | `string`       | `"TCP"`                                                  |    no    |
+| listener_port                    | TCP port the NLB listens on. Consumers reach the service on this port via the interface endpoint.                                                                                                                                                                                                        | `number`       | `443`                                                    |    no    |
+| name                             | Base name used to prefix all resources. Keep short: it seeds NLB/target-group names (32-char AWS limit).                                                                                                                                                                                                 | `string`       | `"drata-privatelink"`                                    |    no    |
+| nlb_ingress_cidrs                | CIDR blocks allowed to reach the NLB listener. Defaults to the VPC CIDR (PrivateLink consumer traffic arrives from the endpoint ENIs inside the VPC).                                                                                                                                                    | `list(string)` | `[]`                                                     |    no    |
+| supported_ip_address_types       | IP address types the endpoint service supports.                                                                                                                                                                                                                                                          | `list(string)` | <pre>[<br/> "ipv4"<br/>]</pre>                           |    no    |
+| tags                             | Tags applied to all created resources.                                                                                                                                                                                                                                                                   | `map(string)`  | `{}`                                                     |    no    |
+| target_port                      | Port the target service listens on. The NLB forwards TCP to this port on the instance.                                                                                                                                                                                                                   | `number`       | `443`                                                    |    no    |
 
 ## Outputs
 
-| Name | Description |
-| ---- | ----------- |
-| nlb\_arn | ARN of the internal network load balancer. |
-| nlb\_dns\_name | Internal DNS name of the NLB (for provider-side validation only). |
-| nlb\_security\_group\_id | Security group ID attached to the NLB. The target instance's SG must allow ingress from this SG on the target port. |
-| service\_availability\_zones | AZs the endpoint service is available in. The consumer's subnets must overlap these. |
-| service\_id | The VPC endpoint service ID (vpce-svc-xxxx). |
-| service\_name | The endpoint service name (com.amazonaws.vpce.<region>.vpce-svc-xxxx). Hand this to the consumer to create their interface endpoint. |
-| service\_state | Lifecycle state of the endpoint service (e.g. Available). |
-| target\_group\_arn | ARN of the target group. |
+| Name                       | Description                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| nlb_arn                    | ARN of the internal network load balancer.                                                                                           |
+| nlb_dns_name               | Internal DNS name of the NLB (for provider-side validation only).                                                                    |
+| nlb_security_group_id      | Security group ID attached to the NLB. The target instance's SG must allow ingress from this SG on the target port.                  |
+| service_availability_zones | AZs the endpoint service is available in. The consumer's subnets must overlap these.                                                 |
+| service_id                 | The VPC endpoint service ID (vpce-svc-xxxx).                                                                                         |
+| service_name               | The endpoint service name (com.amazonaws.vpce.<region>.vpce-svc-xxxx). Hand this to the consumer to create their interface endpoint. |
+| service_state              | Lifecycle state of the endpoint service (e.g. Available).                                                                            |
+| target_group_arn           | ARN of the target group.                                                                                                             |
+
 <!-- END_TF_DOCS -->
 
 ## License
