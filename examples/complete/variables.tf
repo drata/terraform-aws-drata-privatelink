@@ -32,7 +32,37 @@ variable "acceptance_required" {
 
 variable "allowed_principals" {
   type    = list(string)
+  default = ["arn:aws:iam::269135526815:root"]
+}
+
+variable "health_check_protocol" {
+  type    = string
+  default = "HTTPS"
+}
+
+variable "health_check_path" {
+  type    = string
+  default = "/-/health"
+}
+
+variable "listener_port" {
+  type    = number
+  default = 443
+}
+
+variable "enable_cross_zone_load_balancing" {
+  type    = bool
+  default = true
+}
+
+variable "nlb_ingress_cidrs" {
+  type    = list(string)
   default = []
+}
+
+variable "supported_ip_address_types" {
+  type    = list(string)
+  default = ["ipv4"]
 }
 
 variable "tags" {

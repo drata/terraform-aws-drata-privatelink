@@ -28,9 +28,19 @@ module "privatelink" {
   target_instance_id = var.target_instance_id
   target_port        = var.target_port
 
-  # Set to true + a specific principal ARN for real consumers.
-  acceptance_required = var.acceptance_required
-  allowed_principals  = var.allowed_principals
+  # Application-level health probe (defaults to TCP in the module).
+  health_check_protocol = var.health_check_protocol
+  health_check_path     = var.health_check_path
+
+  # NLB tuning.
+  listener_port                    = var.listener_port
+  enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
+  nlb_ingress_cidrs                = var.nlb_ingress_cidrs
+
+  # Endpoint service.
+  acceptance_required        = var.acceptance_required
+  allowed_principals         = var.allowed_principals
+  supported_ip_address_types = var.supported_ip_address_types
 
   tags = var.tags
 }

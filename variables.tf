@@ -89,9 +89,9 @@ variable "acceptance_required" {
 }
 
 variable "allowed_principals" {
-  description = "IAM principal ARNs permitted to discover/connect to the endpoint service (e.g. the consumer's Autopilot role ARN)."
+  description = "IAM principal ARNs allowed to discover the endpoint service and create an interface endpoint to it. Set to the connecting account root, e.g. Drata prod: arn:aws:iam::269135526815:root. This gates connection creation only, not the data path — each connection is still gated by acceptance_required."
   type        = list(string)
-  default     = []
+  default     = ["arn:aws:iam::269135526815:root"]
 }
 
 variable "supported_ip_address_types" {
