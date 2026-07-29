@@ -35,7 +35,10 @@ module "privatelink" {
   # NLB tuning.
   listener_port                    = var.listener_port
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
-  nlb_ingress_cidrs                = var.nlb_ingress_cidrs
+
+  # Must admit the Drata CIDR. Set "off" if Drata CIDR overlaps your VPC.
+  nlb_ingress_cidrs                                            = var.nlb_ingress_cidrs
+  enforce_security_group_inbound_rules_on_private_link_traffic = var.enforce_security_group_inbound_rules_on_private_link_traffic
 
   # Endpoint service.
   acceptance_required        = var.acceptance_required
