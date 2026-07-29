@@ -74,9 +74,20 @@ variable "enable_cross_zone_load_balancing" {
 }
 
 variable "nlb_ingress_cidrs" {
-  description = "CIDR blocks allowed to reach the NLB listener. Defaults to the VPC CIDR (PrivateLink consumer traffic arrives from the endpoint ENIs inside the VPC)."
+  description = "CIDR blocks allowed inbound to the NLB listener. Must admit the Drata CIDR for the region serving your tenant, since with enforcement on the security group matches the connecting client's private IP: us-west-2 10.0.0.0/16 (default), eu-central-1 10.2.0.0/16, ap-southeast-2 10.10.0.0/16. Confirm which applies with Drata. Append your own CIDRs if anything in your VPC reaches the listener directly."
   type        = list(string)
-  default     = []
+  default     = ["10.0.0.0/16"]
+}
+
+variable "enforce_security_group_inbound_rules_on_private_link_traffic" {
+  description = "Whether the NLB security group's inbound rules are evaluated against traffic arriving over PrivateLink (\"on\", the AWS default and the default here) or bypassed for it (\"off\"). Set this to \"off\" if the Drata CIDR in nlb_ingress_cidrs overlaps your VPC, or if you cannot allow that range: security group rules match addresses rather than identities, so an overlapping range cannot distinguish Drata's traffic from your own hosts, and AWS warns PrivateLink traffic \"can originate from overlapping IP addresses\". With \"off\", PrivateLink access is gated solely by allowed_principals plus acceptance_required, and the security group governs only direct in-VPC traffic."
+  type        = string
+  default     = "on"
+
+  validation {
+    condition     = contains(["on", "off"], var.enforce_security_group_inbound_rules_on_private_link_traffic)
+    error_message = "enforce_security_group_inbound_rules_on_private_link_traffic must be \"on\" or \"off\"."
+  }
 }
 
 # ---------------------------------------------------------------------------

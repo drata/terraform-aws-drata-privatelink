@@ -20,8 +20,14 @@ allowed_principals = [
 # health_check_path                = "/-/health"
 # listener_port                    = 443
 # enable_cross_zone_load_balancing = true
-# nlb_ingress_cidrs                = ["10.0.0.0/16"]
 # supported_ip_address_types       = ["ipv4"]
+
+# Drata CIDR by region — confirm which applies with Drata:
+#   us-west-2 10.0.0.0/16 (default) | eu-central-1 10.2.0.0/16 | ap-southeast-2 10.10.0.0/16
+# nlb_ingress_cidrs = ["10.0.0.0/16"]
+
+# Set "off" if Drata CIDR overlaps your VPC, or if you cannot allow it.
+# enforce_security_group_inbound_rules_on_private_link_traffic = "on"
 
 tags = {
   Project = "privatelink"

@@ -12,10 +12,6 @@
 ########################################################################
 
 locals {
-  # PrivateLink consumer traffic egresses the endpoint ENIs inside the VPC,
-  # so default the NLB ingress to the VPC CIDR unless the caller overrides.
-  nlb_ingress_cidrs = length(var.nlb_ingress_cidrs) > 0 ? var.nlb_ingress_cidrs : [data.aws_vpc.this.cidr_block]
-
   common_tags = merge({
     ManagedBy = "terraform"
     Module    = "terraform-aws-drata-privatelink"
@@ -37,10 +33,10 @@ resource "aws_security_group" "nlb" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "nlb_listener" {
-  for_each = toset(local.nlb_ingress_cidrs)
+  for_each = toset(var.nlb_ingress_cidrs)
 
   security_group_id = aws_security_group.nlb.id
-  description       = "Allow PrivateLink consumer traffic to the NLB listener"
+  description       = "Allow client traffic to the NLB listener"
   cidr_ipv4         = each.value
   from_port         = var.listener_port
   to_port           = var.listener_port
@@ -96,7 +92,16 @@ resource "aws_lb" "this" {
 
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
 
+  enforce_security_group_inbound_rules_on_private_link_traffic = var.enforce_security_group_inbound_rules_on_private_link_traffic
+
   tags = merge(local.common_tags, { Name = "${var.name}-nlb" })
+
+  lifecycle {
+    precondition {
+      condition     = var.enforce_security_group_inbound_rules_on_private_link_traffic == "off" || length(var.nlb_ingress_cidrs) > 0
+      error_message = "enforce_security_group_inbound_rules_on_private_link_traffic = \"on\" with an empty nlb_ingress_cidrs drops all PrivateLink traffic. List the Drata CIDR (see the variable description), or set enforcement to \"off\"."
+    }
+  }
 }
 
 resource "aws_lb_listener" "this" {

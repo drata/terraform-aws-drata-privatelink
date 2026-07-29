@@ -56,8 +56,15 @@ variable "enable_cross_zone_load_balancing" {
 }
 
 variable "nlb_ingress_cidrs" {
-  type    = list(string)
-  default = []
+  description = "CIDRs allowed inbound to the NLB listener. Must admit the Drata CIDR for your tenant's region; defaults to Drata prod us-west-2."
+  type        = list(string)
+  default     = ["10.0.0.0/16"]
+}
+
+variable "enforce_security_group_inbound_rules_on_private_link_traffic" {
+  description = "\"on\" (default) filters PrivateLink traffic through the NLB security group. Set \"off\" if the Drata CIDR overlaps your VPC. See the note in main.tf."
+  type        = string
+  default     = "on"
 }
 
 variable "supported_ip_address_types" {
