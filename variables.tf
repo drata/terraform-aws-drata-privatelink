@@ -15,7 +15,7 @@ variable "vpc_id" {
 }
 
 variable "subnet_ids" {
-  description = "Subnet IDs (one per AZ) the internal NLB attaches to. These must be able to reach the target service."
+  description = "Subnet IDs (one per AZ) the internal NLB attaches to, and the source of the Availability Zones the endpoint service advertises. Provide at least two, in different AZs: a single zone is a single point of failure for the consumer and is rejected outright for cross-Region access. The second subnet needs no registered target — enable_cross_zone_load_balancing covers that."
   type        = list(string)
 
   validation {
@@ -103,6 +103,12 @@ variable "allowed_principals" {
   description = "IAM principal ARNs allowed to discover the endpoint service and create an interface endpoint to it. Set to the connecting account root, e.g. Drata prod: arn:aws:iam::269135526815:root. This gates connection creation only, not the data path — each connection is still gated by acceptance_required."
   type        = list(string)
   default     = ["arn:aws:iam::269135526815:root"]
+}
+
+variable "supported_regions" {
+  description = "Regions this endpoint service is available in, beyond the Region hosting it, for consumers using cross-Region access. Leave empty for the normal same-Region case. Setting this requires the vpce:AllowMultiRegion IAM permission, and the service must be enabled in at least two cross-Region-eligible Availability Zones or AWS rejects the change. The host Region is always supported and cannot be removed."
+  type        = list(string)
+  default     = []
 }
 
 variable "supported_ip_address_types" {

@@ -125,6 +125,16 @@ resource "aws_vpc_endpoint_service" "this" {
   network_load_balancer_arns = [aws_lb.this.arn]
   allowed_principals         = var.allowed_principals
   supported_ip_address_types = var.supported_ip_address_types
+  supported_regions          = length(var.supported_regions) > 0 ? var.supported_regions : null
 
   tags = merge(local.common_tags, { Name = "${var.name}-endpoint-service" })
+}
+
+# Warning, not an error: one Availability Zone is a single point of failure for the
+# consumer, and cross-Region access is rejected outright below two.
+check "availability_zones" {
+  assert {
+    condition     = length(var.subnet_ids) >= 2
+    error_message = "subnet_ids covers a single Availability Zone. Add a subnet in another AZ — it needs no registered target, since enable_cross_zone_load_balancing routes to the existing one. Required for cross-Region access, recommended otherwise."
+  }
 }
