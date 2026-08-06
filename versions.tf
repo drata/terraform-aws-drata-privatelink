@@ -3,8 +3,9 @@ terraform {
 
   required_providers {
     aws = {
+      # 5.100.0 is the version supported_regions was verified against.
       source  = "hashicorp/aws"
-      version = ">= 5.30.0"
+      version = ">= 5.100.0"
     }
   }
 }

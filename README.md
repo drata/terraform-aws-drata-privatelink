@@ -16,9 +16,29 @@ The consumer (e.g. Drata Autopilot) takes the `service_name` output and creates
 an **interface VPC endpoint** on their side; with `acceptance_required = true`
 you approve each connection request explicitly.
 
-> Origin: Drata OCTO-1793 ("TF | Network Level Private Endpoint"). The module is
-> deliberately target-agnostic — it references the target only by instance id and
-> port, so it works for any service you need to reach privately.
+> The module is deliberately target-agnostic — it references the target only by
+> instance id and port, so it works for any service you need to reach privately.
+
+## Region
+
+Deploy in the Region serving your Drata tenant, and allow that Region's CIDR in
+`nlb_ingress_cidrs`. Ask Drata which applies:
+
+| Drata Region | Drata CIDR |
+| --- | --- |
+| `us-west-2` | `10.0.0.0/16` (default) |
+| `eu-central-1` | `10.2.0.0/16` |
+| `ap-southeast-2` | `10.10.0.0/16` |
+
+If your service must stay in a different Region, set `supported_regions = ["<drata-region>"]`
+to enable cross-Region access. That needs the `vpce:AllowMultiRegion` IAM permission and at
+least two Availability Zones.
+
+## Availability Zones
+
+Pass at least two `subnet_ids`, in different AZs. The second needs no target —
+`enable_cross_zone_load_balancing` (default `true`) reaches the instance in the other zone.
+One zone is rejected for cross-Region access, and the module warns at plan time.
 
 ## Usage
 
@@ -26,9 +46,11 @@ you approve each connection request explicitly.
 module "privatelink" {
   source = "github.com/drata/terraform-aws-drata-privatelink"
 
-  name       = "myservice-privatelink"
-  vpc_id     = "vpc-0123456789abcdef0"
-  subnet_ids = ["subnet-aaaa", "subnet-bbbb"] # one per AZ, must reach the target
+  name   = "myservice-privatelink"
+  vpc_id = "vpc-0123456789abcdef0"
+
+  # At least two subnets, each in a different AZ. The second needs no target.
+  subnet_ids = ["subnet-aaaa", "subnet-bbbb"]
 
   target_instance_id = "i-0123456789abcdef0"
   target_port        = 443
@@ -60,38 +82,18 @@ A runnable example lives in [`examples/complete`](./examples/complete).
 - **Target instance security group** must allow ingress on `target_port` from
   the module's NLB security group (`nlb_security_group_id` output). The module
   does not modify the target instance's SG.
-- **`nlb_ingress_cidrs` must admit the Drata CIDR.** With enforcement `"on"` (the
-  default), the NLB's inbound rules apply to PrivateLink traffic too, and the
-  source they match is *"the private IP address of the client, not the endpoint
-  interface"* — so the range that matters is Drata's, not your VPC's. Default is
-  `["10.0.0.0/16"]` (Drata prod `us-west-2`); if your tenant is served from
-  another region, substitute that region's CIDR:
-
-  | Drata prod region | Drata CIDR |
-  | --- | --- |
-  | `us-west-2` | `10.0.0.0/16` |
-  | `eu-central-1` | `10.2.0.0/16` |
-  | `ap-southeast-2` | `10.10.0.0/16` |
-
-  Confirm with Drata which one applies before you apply.
-- **Set enforcement to `"off"` if the Drata CIDR overlaps your VPC.** Security
-  group rules match addresses, not identities, so an overlapping range cannot tell
-  Drata's traffic from your own hosts — and AWS warns PrivateLink traffic *"can
-  originate from overlapping IP addresses"*.
-  `enforce_security_group_inbound_rules_on_private_link_traffic = "off"` exempts
-  PrivateLink traffic from the security group entirely, leaving it gated by
-  `allowed_principals` + `acceptance_required`, while the security group keeps
-  governing direct in-VPC traffic. Same move if policy prevents you allowing that
-  range at all.
-- **Debugging a consumer that cannot connect while enforcement is `"on"`.** A
-  security group drop is indistinguishable from a data-plane fault when viewed
-  from the consumer side: the endpoint reports `available`, the connection reports
-  accepted and the target group reports healthy, yet every connect times out.
-  Check the `SecurityGroupBlockedFlowCount_Inbound` CloudWatch metric on the NLB
-  before investigating anything else. See
-  [Security groups for your Network Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-security-groups.html).
-- **Subnets** should be one per AZ and able to route to the target;
-  `enable_cross_zone_load_balancing = true` (default) covers a single-AZ target.
+- **`nlb_ingress_cidrs` must admit the Drata CIDR** — with enforcement `"on"` (the
+  default) the security group matches the *client's* private IP, not the endpoint
+  interface, so the range that matters is Drata's, not yours. See [Region](#region).
+- **Set `enforce_security_group_inbound_rules_on_private_link_traffic = "off"`** if that
+  CIDR overlaps your VPC, or you cannot allow it. PrivateLink is then gated by
+  `allowed_principals` + `acceptance_required`, and the security group governs only
+  direct in-VPC traffic.
+- **If a consumer cannot connect while enforcement is `"on"`**, check the NLB's
+  `SecurityGroupBlockedFlowCount_Inbound` metric first — a security group drop looks
+  identical to a data-plane fault from the consumer's side ([docs](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-security-groups.html)).
+- **Subnets** — one per AZ, at least two, each able to route to the target. See
+  [Availability Zones](#availability-zones).
 - **`allowed_principals`** may start empty — provision the service first, then
   add the consumer ARN and re-apply.
 - Health check defaults to **TCP** on the traffic port. Switch to `HTTP`/`HTTPS`
@@ -110,13 +112,13 @@ A runnable example lives in [`examples/complete`](./examples/complete).
 | Name | Version |
 | ---- | ------- |
 | terraform | >= 1.5.0 |
-| aws | >= 5.30.0 |
+| aws | >= 5.100.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| aws | >= 5.30.0 |
+| aws | >= 5.100.0 |
 
 ## Modules
 
@@ -134,13 +136,14 @@ No modules.
 | [aws_vpc_endpoint_service.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service) | resource |
 | [aws_vpc_security_group_egress_rule.nlb_to_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nlb_listener](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_subnet.selected](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet) | data source |
 | [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| subnet\_ids | Subnet IDs (one per AZ) the internal NLB attaches to. These must be able to reach the target service. | `list(string)` | n/a | yes |
+| subnet\_ids | Subnet IDs (one per AZ) the internal NLB attaches to, and the source of the Availability Zones the endpoint service advertises. Provide at least two, in different AZs: a single zone is a single point of failure for the consumer and is rejected outright for cross-Region access. The second subnet needs no registered target — enable\_cross\_zone\_load\_balancing covers that. | `list(string)` | n/a | yes |
 | target\_instance\_id | EC2 instance ID of the privately-hosted service to register as the NLB target. | `string` | n/a | yes |
 | vpc\_id | ID of the VPC that hosts the target service and where the internal NLB is provisioned. | `string` | n/a | yes |
 | acceptance\_required | Require manual acceptance of endpoint connection requests. Keep true so you explicitly approve each consumer. | `bool` | `true` | no |
@@ -153,6 +156,7 @@ No modules.
 | name | Base name used to prefix all resources. Keep short: it seeds NLB/target-group names (32-char AWS limit). | `string` | `"drata-privatelink"` | no |
 | nlb\_ingress\_cidrs | CIDR blocks allowed inbound to the NLB listener. Must admit the Drata CIDR for the region serving your tenant, since with enforcement on the security group matches the connecting client's private IP: us-west-2 10.0.0.0/16 (default), eu-central-1 10.2.0.0/16, ap-southeast-2 10.10.0.0/16. Confirm which applies with Drata. Append your own CIDRs if anything in your VPC reaches the listener directly. | `list(string)` | <pre>[<br/>  "10.0.0.0/16"<br/>]</pre> | no |
 | supported\_ip\_address\_types | IP address types the endpoint service supports. | `list(string)` | <pre>[<br/>  "ipv4"<br/>]</pre> | no |
+| supported\_regions | Regions this endpoint service is available in, beyond the Region hosting it, for consumers using cross-Region access. Leave empty for the normal same-Region case. Setting this requires the vpce:AllowMultiRegion IAM permission, and the service must be enabled in at least two cross-Region-eligible Availability Zones or AWS rejects the change. The host Region is always supported and cannot be removed. | `list(string)` | `[]` | no |
 | tags | Tags applied to all created resources. | `map(string)` | `{}` | no |
 | target\_port | Port the target service listens on. The NLB forwards TCP to this port on the instance. | `number` | `443` | no |
 

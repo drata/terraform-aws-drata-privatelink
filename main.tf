@@ -22,6 +22,12 @@ data "aws_vpc" "this" {
   id = var.vpc_id
 }
 
+data "aws_subnet" "selected" {
+  for_each = toset(var.subnet_ids)
+
+  id = each.value
+}
+
 # ---------------------------------------------------------------------------
 # Security group for the internal NLB
 # ---------------------------------------------------------------------------
@@ -125,6 +131,14 @@ resource "aws_vpc_endpoint_service" "this" {
   network_load_balancer_arns = [aws_lb.this.arn]
   allowed_principals         = var.allowed_principals
   supported_ip_address_types = var.supported_ip_address_types
+  supported_regions          = length(var.supported_regions) > 0 ? var.supported_regions : null
 
   tags = merge(local.common_tags, { Name = "${var.name}-endpoint-service" })
+}
+
+check "availability_zones" {
+  assert {
+    condition     = length(distinct([for s in data.aws_subnet.selected : s.availability_zone])) >= 2
+    error_message = "subnet_ids spans fewer than two Availability Zones. Add a subnet in another AZ — it needs no registered target, since enable_cross_zone_load_balancing routes to the existing one. Required for cross-Region access, recommended otherwise."
+  }
 }
