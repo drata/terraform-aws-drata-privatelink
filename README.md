@@ -16,9 +16,8 @@ The consumer (e.g. Drata Autopilot) takes the `service_name` output and creates
 an **interface VPC endpoint** on their side; with `acceptance_required = true`
 you approve each connection request explicitly.
 
-> Origin: Drata OCTO-1793 ("TF | Network Level Private Endpoint"). The module is
-> deliberately target-agnostic — it references the target only by instance id and
-> port, so it works for any service you need to reach privately.
+> The module is deliberately target-agnostic — it references the target only by
+> instance id and port, so it works for any service you need to reach privately.
 
 ## Region
 
@@ -94,7 +93,7 @@ A runnable example lives in [`examples/complete`](./examples/complete).
   `SecurityGroupBlockedFlowCount_Inbound` metric first — a security group drop looks
   identical to a data-plane fault from the consumer's side ([docs](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/load-balancer-security-groups.html)).
 - **Subnets** — one per AZ, at least two, each able to route to the target. See
-  [Enable at least two Availability Zones](#2-enable-at-least-two-availability-zones).
+  [Availability Zones](#availability-zones).
 - **`allowed_principals`** may start empty — provision the service first, then
   add the consumer ARN and re-apply.
 - Health check defaults to **TCP** on the traffic port. Switch to `HTTP`/`HTTPS`
@@ -137,6 +136,7 @@ No modules.
 | [aws_vpc_endpoint_service.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service) | resource |
 | [aws_vpc_security_group_egress_rule.nlb_to_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nlb_listener](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_subnet.selected](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet) | data source |
 | [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
 
 ## Inputs

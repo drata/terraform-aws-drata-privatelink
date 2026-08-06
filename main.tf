@@ -22,6 +22,12 @@ data "aws_vpc" "this" {
   id = var.vpc_id
 }
 
+data "aws_subnet" "selected" {
+  for_each = toset(var.subnet_ids)
+
+  id = each.value
+}
+
 # ---------------------------------------------------------------------------
 # Security group for the internal NLB
 # ---------------------------------------------------------------------------
@@ -130,11 +136,9 @@ resource "aws_vpc_endpoint_service" "this" {
   tags = merge(local.common_tags, { Name = "${var.name}-endpoint-service" })
 }
 
-# Warning, not an error: one Availability Zone is a single point of failure for the
-# consumer, and cross-Region access is rejected outright below two.
 check "availability_zones" {
   assert {
-    condition     = length(var.subnet_ids) >= 2
-    error_message = "subnet_ids covers a single Availability Zone. Add a subnet in another AZ — it needs no registered target, since enable_cross_zone_load_balancing routes to the existing one. Required for cross-Region access, recommended otherwise."
+    condition     = length(distinct([for s in data.aws_subnet.selected : s.availability_zone])) >= 2
+    error_message = "subnet_ids spans fewer than two Availability Zones. Add a subnet in another AZ — it needs no registered target, since enable_cross_zone_load_balancing routes to the existing one. Required for cross-Region access, recommended otherwise."
   }
 }
