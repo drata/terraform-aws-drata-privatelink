@@ -143,22 +143,12 @@ variable "private_dns_validation_zone_id" {
   description = "Route53 zone ID of the PUBLIC hosted zone authoritative for private_dns_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private_dns_verification_* outputs."
   type        = string
   default     = null
-
-  validation {
-    condition     = var.private_dns_validation_zone_id == null || var.private_dns_name != null
-    error_message = "private_dns_name must be set when private_dns_validation_zone_id is provided."
-  }
 }
 
 variable "verify_private_dns_name" {
   description = "Whether to have AWS verify domain ownership during apply. Defaults to true when private_dns_validation_zone_id is set, since the TXT record is then created here. If your DNS is hosted elsewhere, leave this null for the first apply, publish the record from the outputs, then set it to true — verification fails while the record is not publicly resolvable."
   type        = bool
   default     = null
-
-  validation {
-    condition     = var.verify_private_dns_name != true || var.private_dns_name != null
-    error_message = "private_dns_name must be set when verify_private_dns_name is true."
-  }
 }
 
 variable "private_dns_verification_timeout" {
@@ -168,7 +158,7 @@ variable "private_dns_verification_timeout" {
 
   validation {
     condition     = can(regex("^[0-9]+(s|m|h)$", var.private_dns_verification_timeout))
-    error_message = "private_dns_verification_timeout must be a Go duration such as 30m, 90s or 2h."
+    error_message = "private_dns_verification_timeout must be a whole number of seconds, minutes or hours, e.g. 30m, 90s or 2h."
   }
 }
 

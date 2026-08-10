@@ -17,6 +17,10 @@ terraform init
 terraform apply
 ```
 
+The target instance's security group must allow ingress on `target_port` from
+the SG exposed by the `nlb_security_group_id` output — the module does not
+modify the target's SG.
+
 ## Private DNS
 
 Optional, and left off by default. Setting `private_dns_name` lets the consumer keep using
@@ -41,7 +45,3 @@ terraform output private_dns_verification_value   # -> vpce:XXXXXXXX
 
 `private_dns_verification_timeout` (default `30m`) bounds how long the second apply waits
 for AWS to see the record.
-
-The target instance's security group must allow ingress on `target_port` from
-the SG exposed by the `nlb_security_group_id` output — the module does not
-modify the target's SG.

@@ -135,6 +135,21 @@ resource "aws_vpc_endpoint_service" "this" {
   private_dns_name           = var.private_dns_name
 
   tags = merge(local.common_tags, { Name = "${var.name}-endpoint-service" })
+
+  # Preconditions rather than variable validation: cross-variable conditions need
+  # Terraform 1.9, and this module supports 1.5. Both combinations are otherwise
+  # silent no-ops, which is worse than failing.
+  lifecycle {
+    precondition {
+      condition     = var.private_dns_validation_zone_id == null || var.private_dns_name != null
+      error_message = "private_dns_name must be set when private_dns_validation_zone_id is provided."
+    }
+
+    precondition {
+      condition     = var.verify_private_dns_name != true || var.private_dns_name != null
+      error_message = "private_dns_name must be set when verify_private_dns_name is true."
+    }
+  }
 }
 
 check "availability_zones" {

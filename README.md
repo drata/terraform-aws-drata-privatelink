@@ -146,8 +146,9 @@ Notes:
   `ec2:ModifyVpcEndpointServiceConfiguration` and
   `ec2:StartVpcEndpointServicePrivateDnsVerification`, plus — only when
   `private_dns_validation_zone_id` is set — `route53:GetHostedZone`,
-  `route53:ListTagsForResource`, `route53:ChangeResourceRecordSets` and
-  `route53:GetChange`. The zone must be in this same account.
+  `route53:ListTagsForResource`, `route53:ListResourceRecordSets`,
+  `route53:ChangeResourceRecordSets` and `route53:GetChange`. The zone must be in this
+  same account.
 - The zone passed as `private_dns_validation_zone_id` is read back and checked: a private
   hosted zone, or one not authoritative for `private_dns_name`, fails at plan time rather
   than timing out half an hour into the apply.
