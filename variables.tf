@@ -129,9 +129,13 @@ variable "private_dns_name" {
     condition = (
       var.private_dns_name == null
       ? true
-      : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", lower(var.private_dns_name)))
+      : (
+        can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", var.private_dns_name))
+        && length(var.private_dns_name) <= 255
+        && alltrue([for label in split(".", var.private_dns_name) : length(label) <= 63])
+      )
     )
-    error_message = "private_dns_name must be a fully qualified domain name, e.g. gitlab.example.com. Use null rather than an empty string to skip private DNS."
+    error_message = "private_dns_name must be a lowercase fully qualified domain name, at most 255 characters with labels of at most 63, e.g. gitlab.example.com. Use null rather than an empty string to skip private DNS."
   }
 }
 
@@ -158,7 +162,7 @@ variable "verify_private_dns_name" {
 }
 
 variable "private_dns_verification_timeout" {
-  description = "How long to wait for AWS to detect the verification TXT record before failing the apply. This is AWS's own detection interval, not DNS propagation — AWS states record updates can take up to 48 hours to take effect, though they are usually picked up in minutes. Matches the provider default."
+  description = "How long to wait for AWS to detect the verification TXT record before failing the apply. AWS may take up to 48 hours to pick a record up, though in practice it is minutes. Matches the provider default."
   type        = string
   default     = "30m"
 

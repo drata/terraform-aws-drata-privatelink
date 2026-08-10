@@ -17,7 +17,8 @@ All notable changes to this module are documented here. This project follows
   for it, instead of leaving the service in `pendingVerification` until someone notices.
   Defaults to true when `private_dns_validation_zone_id` is set; set it explicitly once the
   record has been published by hand when DNS is hosted elsewhere.
-- `private_dns_verification_timeout` — how long to wait for that check. Defaults to `10m`.
+- `private_dns_verification_timeout` — how long to wait for that check. Defaults to `30m`,
+  matching the provider.
 - `private_dns_verification_name`, `private_dns_verification_type`,
   `private_dns_verification_value` and `private_dns_verification_state` outputs, so the
   record can be published with any DNS provider and the result checked without the console.
