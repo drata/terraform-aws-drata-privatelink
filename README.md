@@ -75,7 +75,65 @@ A runnable example lives in [`examples/complete`](./examples/complete).
 2. `terraform apply` → produces `service_name`.
 3. Give `service_name` to the consumer; they create their interface endpoint.
 4. Approve the pending endpoint connection (Console/CLI) unless `acceptance_required = false`.
-5. Consumer reads the generated private DNS record and connects.
+5. Consumer connects — on the endpoint's generated name, or on your own hostname if you
+   set up a [private DNS name](#private-dns-name).
+
+## Private DNS name
+
+Optional, and worth doing.
+
+Without it, the consumer's only address is the endpoint's generated regional name:
+
+```
+vpce-0123456789abcdef0-a1b2c3d4.vpce-svc-0123456789abcdef0.eu-west-1.vpce.amazonaws.com
+```
+
+PrivateLink does not terminate TLS. The certificate served on that connection is yours, and
+its SAN lists your real hostname, not the `vpce` name — so any client doing normal certificate
+validation fails, and the connection only works with verification disabled.
+
+Setting `private_dns_name` to the hostname consumers already use removes that. Once AWS has
+verified you own the domain, the consumer enables private DNS on their endpoint and AWS maps
+the hostname to it inside their VPC. Your certificate matches, and neither side changes any
+application configuration.
+
+**Verification is public.** AWS proves ownership by resolving a TXT record on the public
+internet. A private hosted zone cannot satisfy it.
+
+**Public zone in this account** — pass its ID and the module does the rest:
+
+```hcl
+private_dns_name               = "gitlab.example.com"
+private_dns_validation_zone_id = "Z0123456789ABCDEFGHIJ"
+```
+
+The module writes the TXT record and waits for AWS to verify it before the apply completes.
+
+**DNS hosted anywhere else** — apply once with only `private_dns_name`, then publish the
+record with your provider:
+
+```console
+$ terraform output private_dns_verification_name
+"_6e86v84tqgqubxbwii1m"
+$ terraform output private_dns_verification_value
+"vpce:l6p0ERxlTt45jevFwOCp"
+```
+
+| Name | Type | Value |
+|---|---|---|
+| `_6e86v84tqgqubxbwii1m.example.com` | TXT | `vpce:l6p0ERxlTt45jevFwOCp` |
+
+`<domain>` is `private_dns_name` or any parent of it — verifying `example.com` also covers
+`gitlab.example.com`. Once it resolves publicly, set `verify_private_dns_name = true` and
+apply again.
+
+Notes:
+
+- An endpoint service carries only one private DNS name.
+- If verification later lapses, existing connections survive but new ones are refused.
+- Some providers lowercase TXT values or append the domain to the record name; both break
+  verification. If your provider rejects underscores in record names, omit the
+  `_6e86v84tqgqubxbwii1m` label and put the value on the bare domain instead.
 
 ## Prerequisites & notes
 
@@ -132,8 +190,10 @@ No modules.
 | [aws_lb_listener.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener) | resource |
 | [aws_lb_target_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group) | resource |
 | [aws_lb_target_group_attachment.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_target_group_attachment) | resource |
+| [aws_route53_record.private_dns_validation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route53_record) | resource |
 | [aws_security_group.nlb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_vpc_endpoint_service.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service) | resource |
+| [aws_vpc_endpoint_service_private_dns_verification.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service_private_dns_verification) | resource |
 | [aws_vpc_security_group_egress_rule.nlb_to_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nlb_listener](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_subnet.selected](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet) | data source |
@@ -155,10 +215,14 @@ No modules.
 | listener\_port | TCP port the NLB listens on. Consumers reach the service on this port via the interface endpoint. | `number` | `443` | no |
 | name | Base name used to prefix all resources. Keep short: it seeds NLB/target-group names (32-char AWS limit). | `string` | `"drata-privatelink"` | no |
 | nlb\_ingress\_cidrs | CIDR blocks allowed inbound to the NLB listener. Must admit the Drata CIDR for the region serving your tenant, since with enforcement on the security group matches the connecting client's private IP: us-west-2 10.0.0.0/16 (default), eu-central-1 10.2.0.0/16, ap-southeast-2 10.10.0.0/16. Confirm which applies with Drata. Append your own CIDRs if anything in your VPC reaches the listener directly. | `list(string)` | <pre>[<br/>  "10.0.0.0/16"<br/>]</pre> | no |
+| private\_dns\_name | Hostname consumers already use to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets the consumer enable private DNS, after which the name resolves to the endpoint inside their VPC and their existing TLS certificate keeps matching — without it they can only use the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. Leave null to skip private DNS entirely. | `string` | `null` | no |
+| private\_dns\_validation\_zone\_id | Route53 zone ID of the PUBLIC hosted zone authoritative for private\_dns\_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private\_dns\_verification\_* outputs. | `string` | `null` | no |
+| private\_dns\_verification\_timeout | How long to wait for AWS to observe the verification TXT record before failing the apply. Public DNS usually propagates in well under a minute, but some providers are slower. | `string` | `"10m"` | no |
 | supported\_ip\_address\_types | IP address types the endpoint service supports. | `list(string)` | <pre>[<br/>  "ipv4"<br/>]</pre> | no |
 | supported\_regions | Regions this endpoint service is available in, beyond the Region hosting it, for consumers using cross-Region access. Leave empty for the normal same-Region case. Setting this requires the vpce:AllowMultiRegion IAM permission, and the service must be enabled in at least two cross-Region-eligible Availability Zones or AWS rejects the change. The host Region is always supported and cannot be removed. | `list(string)` | `[]` | no |
 | tags | Tags applied to all created resources. | `map(string)` | `{}` | no |
 | target\_port | Port the target service listens on. The NLB forwards TCP to this port on the instance. | `number` | `443` | no |
+| verify\_private\_dns\_name | Whether to have AWS verify domain ownership during apply. Defaults to true when private\_dns\_validation\_zone\_id is set, since the TXT record is then created here. If your DNS is hosted elsewhere, leave this null for the first apply, publish the record from the outputs, then set it to true — verification fails while the record is not publicly resolvable. | `bool` | `null` | no |
 
 ## Outputs
 
@@ -167,6 +231,10 @@ No modules.
 | nlb\_arn | ARN of the internal network load balancer. |
 | nlb\_dns\_name | Internal DNS name of the NLB (for provider-side validation only). |
 | nlb\_security\_group\_id | Security group ID attached to the NLB. The target instance's SG must allow ingress from this SG on the target port. |
+| private\_dns\_verification\_name | Name label of the domain ownership verification TXT record, null when private\_dns\_name is not set. Publish it as <name>.<domain>, where <domain> is private\_dns\_name or any parent of it — verifying example.com also covers gitlab.example.com. |
+| private\_dns\_verification\_state | Verification state reported by AWS: pendingVerification, verified or failed. Consumers cannot enable private DNS until this reads verified. If it later stops reading verified, existing connections survive but new ones are refused. |
+| private\_dns\_verification\_type | Record type of the ownership verification record. Always TXT. |
+| private\_dns\_verification\_value | Value of the ownership verification TXT record. |
 | service\_availability\_zones | AZs the endpoint service is available in. The consumer's subnets must overlap these. |
 | service\_id | The VPC endpoint service ID (vpce-svc-xxxx). |
 | service\_name | The endpoint service name (com.amazonaws.vpce.<region>.vpce-svc-xxxx). Hand this to the consumer to create their interface endpoint. |

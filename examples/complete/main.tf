@@ -36,5 +36,11 @@ module "privatelink" {
   allowed_principals         = var.allowed_principals
   supported_ip_address_types = var.supported_ip_address_types
 
+  # Optional. Lets the consumer keep using your existing hostname.
+  # AWS verifies ownership via a TXT record in the domain's PUBLIC zone.
+  private_dns_name               = var.private_dns_name
+  private_dns_validation_zone_id = var.private_dns_validation_zone_id
+  verify_private_dns_name        = var.verify_private_dns_name
+
   tags = var.tags
 }

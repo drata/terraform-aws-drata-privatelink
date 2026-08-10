@@ -72,6 +72,24 @@ variable "supported_ip_address_types" {
   default = ["ipv4"]
 }
 
+variable "private_dns_name" {
+  description = "Hostname consumers already use, e.g. gitlab.example.com. Leave null to skip private DNS."
+  type        = string
+  default     = null
+}
+
+variable "private_dns_validation_zone_id" {
+  description = "Public Route53 zone ID for private_dns_name, if that zone is in this account. Leave null when DNS is hosted elsewhere and publish the TXT record yourself."
+  type        = string
+  default     = null
+}
+
+variable "verify_private_dns_name" {
+  description = "Set true once the verification TXT record is published, when DNS is hosted outside this account. Defaults to true automatically when private_dns_validation_zone_id is set."
+  type        = bool
+  default     = null
+}
+
 variable "tags" {
   type    = map(string)
   default = {}

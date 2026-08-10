@@ -117,6 +117,38 @@ variable "supported_ip_address_types" {
   default     = ["ipv4"]
 }
 
+# ---------------------------------------------------------------------------
+# Private DNS name (optional)
+# ---------------------------------------------------------------------------
+variable "private_dns_name" {
+  description = "Hostname consumers already use to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets the consumer enable private DNS, after which the name resolves to the endpoint inside their VPC and their existing TLS certificate keeps matching — without it they can only use the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. Leave null to skip private DNS entirely."
+  type        = string
+  default     = null
+}
+
+variable "private_dns_validation_zone_id" {
+  description = "Route53 zone ID of the PUBLIC hosted zone authoritative for private_dns_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private_dns_verification_* outputs."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.private_dns_validation_zone_id == null || var.private_dns_name != null
+    error_message = "private_dns_name must be set when private_dns_validation_zone_id is provided."
+  }
+}
+
+variable "verify_private_dns_name" {
+  description = "Whether to have AWS verify domain ownership during apply. Defaults to true when private_dns_validation_zone_id is set, since the TXT record is then created here. If your DNS is hosted elsewhere, leave this null for the first apply, publish the record from the outputs, then set it to true — verification fails while the record is not publicly resolvable."
+  type        = bool
+  default     = null
+}
+
+variable "private_dns_verification_timeout" {
+  description = "How long to wait for AWS to observe the verification TXT record before failing the apply. Public DNS usually propagates in well under a minute, but some providers are slower."
+  type        = string
+  default     = "10m"
+}
+
 variable "tags" {
   description = "Tags applied to all created resources."
   type        = map(string)

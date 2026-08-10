@@ -132,6 +132,7 @@ resource "aws_vpc_endpoint_service" "this" {
   allowed_principals         = var.allowed_principals
   supported_ip_address_types = var.supported_ip_address_types
   supported_regions          = length(var.supported_regions) > 0 ? var.supported_regions : null
+  private_dns_name           = var.private_dns_name
 
   tags = merge(local.common_tags, { Name = "${var.name}-endpoint-service" })
 }
