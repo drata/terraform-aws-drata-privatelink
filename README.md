@@ -130,6 +130,14 @@ apply again.
 Notes:
 
 - An endpoint service carries only one private DNS name.
+- `private_dns_verification_state` is read before verification runs, so the apply that
+  verifies the domain still prints `pendingVerification`. Re-run `terraform plan` (or
+  `terraform refresh`) to see it settle to `verified`.
+- Changing `private_dns_name` later re-runs verification for the new name — expect the
+  apply to wait again.
+- The zone passed as `private_dns_validation_zone_id` is read back and checked: a private
+  hosted zone, or one not authoritative for `private_dns_name`, fails at plan time rather
+  than timing out half an hour into the apply.
 - If verification later lapses, existing connections survive but new ones are refused.
 - Some providers lowercase TXT values or append the domain to the record name; both break
   verification. If your provider rejects underscores in record names, omit the
@@ -196,6 +204,7 @@ No modules.
 | [aws_vpc_endpoint_service_private_dns_verification.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_endpoint_service_private_dns_verification) | resource |
 | [aws_vpc_security_group_egress_rule.nlb_to_target](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nlb_listener](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
+| [aws_route53_zone.private_dns_validation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) | data source |
 | [aws_subnet.selected](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnet) | data source |
 | [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
 
@@ -217,7 +226,7 @@ No modules.
 | nlb\_ingress\_cidrs | CIDR blocks allowed inbound to the NLB listener. Must admit the Drata CIDR for the region serving your tenant, since with enforcement on the security group matches the connecting client's private IP: us-west-2 10.0.0.0/16 (default), eu-central-1 10.2.0.0/16, ap-southeast-2 10.10.0.0/16. Confirm which applies with Drata. Append your own CIDRs if anything in your VPC reaches the listener directly. | `list(string)` | <pre>[<br/>  "10.0.0.0/16"<br/>]</pre> | no |
 | private\_dns\_name | Hostname consumers already use to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets the consumer enable private DNS, after which the name resolves to the endpoint inside their VPC and their existing TLS certificate keeps matching — without it they can only use the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. Leave null to skip private DNS entirely. | `string` | `null` | no |
 | private\_dns\_validation\_zone\_id | Route53 zone ID of the PUBLIC hosted zone authoritative for private\_dns\_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private\_dns\_verification\_* outputs. | `string` | `null` | no |
-| private\_dns\_verification\_timeout | How long to wait for AWS to observe the verification TXT record before failing the apply. Public DNS usually propagates in well under a minute, but some providers are slower. | `string` | `"10m"` | no |
+| private\_dns\_verification\_timeout | How long to wait for AWS to detect the verification TXT record before failing the apply. This is AWS's own detection interval, not DNS propagation — AWS states record updates can take up to 48 hours to take effect, though they are usually picked up in minutes. Matches the provider default. | `string` | `"30m"` | no |
 | supported\_ip\_address\_types | IP address types the endpoint service supports. | `list(string)` | <pre>[<br/>  "ipv4"<br/>]</pre> | no |
 | supported\_regions | Regions this endpoint service is available in, beyond the Region hosting it, for consumers using cross-Region access. Leave empty for the normal same-Region case. Setting this requires the vpce:AllowMultiRegion IAM permission, and the service must be enabled in at least two cross-Region-eligible Availability Zones or AWS rejects the change. The host Region is always supported and cannot be removed. | `list(string)` | `[]` | no |
 | tags | Tags applied to all created resources. | `map(string)` | `{}` | no |
@@ -232,7 +241,7 @@ No modules.
 | nlb\_dns\_name | Internal DNS name of the NLB (for provider-side validation only). |
 | nlb\_security\_group\_id | Security group ID attached to the NLB. The target instance's SG must allow ingress from this SG on the target port. |
 | private\_dns\_verification\_name | Name label of the domain ownership verification TXT record, null when private\_dns\_name is not set. Publish it as <name>.<domain>, where <domain> is private\_dns\_name or any parent of it — verifying example.com also covers gitlab.example.com. |
-| private\_dns\_verification\_state | Verification state reported by AWS: pendingVerification, verified or failed. Consumers cannot enable private DNS until this reads verified. If it later stops reading verified, existing connections survive but new ones are refused. |
+| private\_dns\_verification\_state | Verification state as of the last read: pendingVerification, verified or failed. Consumers cannot enable private DNS until this reads verified. Note the lag — the value is captured before verification runs, so the apply that actually verifies the domain still prints pendingVerification. Re-run plan or refresh to see it settle. |
 | private\_dns\_verification\_type | Record type of the ownership verification record. Always TXT. |
 | private\_dns\_verification\_value | Value of the ownership verification TXT record. |
 | service\_availability\_zones | AZs the endpoint service is available in. The consumer's subnets must overlap these. |

@@ -124,6 +124,15 @@ variable "private_dns_name" {
   description = "Hostname consumers already use to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets the consumer enable private DNS, after which the name resolves to the endpoint inside their VPC and their existing TLS certificate keeps matching — without it they can only use the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. Leave null to skip private DNS entirely."
   type        = string
   default     = null
+
+  validation {
+    condition = (
+      var.private_dns_name == null
+      ? true
+      : can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", lower(var.private_dns_name)))
+    )
+    error_message = "private_dns_name must be a fully qualified domain name, e.g. gitlab.example.com. Use null rather than an empty string to skip private DNS."
+  }
 }
 
 variable "private_dns_validation_zone_id" {
@@ -141,12 +150,22 @@ variable "verify_private_dns_name" {
   description = "Whether to have AWS verify domain ownership during apply. Defaults to true when private_dns_validation_zone_id is set, since the TXT record is then created here. If your DNS is hosted elsewhere, leave this null for the first apply, publish the record from the outputs, then set it to true — verification fails while the record is not publicly resolvable."
   type        = bool
   default     = null
+
+  validation {
+    condition     = var.verify_private_dns_name != true || var.private_dns_name != null
+    error_message = "private_dns_name must be set when verify_private_dns_name is true."
+  }
 }
 
 variable "private_dns_verification_timeout" {
-  description = "How long to wait for AWS to observe the verification TXT record before failing the apply. Public DNS usually propagates in well under a minute, but some providers are slower."
+  description = "How long to wait for AWS to detect the verification TXT record before failing the apply. This is AWS's own detection interval, not DNS propagation — AWS states record updates can take up to 48 hours to take effect, though they are usually picked up in minutes. Matches the provider default."
   type        = string
-  default     = "10m"
+  default     = "30m"
+
+  validation {
+    condition     = can(regex("^[0-9]+(s|m|h)$", var.private_dns_verification_timeout))
+    error_message = "private_dns_verification_timeout must be a Go duration such as 30m, 90s or 2h."
+  }
 }
 
 variable "tags" {

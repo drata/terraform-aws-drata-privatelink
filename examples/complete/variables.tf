@@ -90,6 +90,12 @@ variable "verify_private_dns_name" {
   default     = null
 }
 
+variable "private_dns_verification_timeout" {
+  description = "How long the apply waits for AWS to detect the verification TXT record."
+  type        = string
+  default     = "30m"
+}
+
 variable "tags" {
   type    = map(string)
   default = {}
