@@ -23,7 +23,10 @@ All notable changes to this module are documented here. This project follows
   `private_dns_verification_value` and `private_dns_verification_state` outputs, so the
   record can be published with any DNS provider and the result checked without the console.
 - README section covering the certificate problem private DNS solves, the public-zone
-  requirement, and both the Route53 and external-DNS paths.
+  requirement, both the Route53 and external-DNS paths, and the fact that ownership
+  verification checks the domain and never the certificate — so `private_dns_name` must also
+  appear in the SAN of whatever terminates TLS behind the NLB, and be the exact hostname the
+  consumer dials. A mismatch verifies and resolves cleanly, then fails every handshake.
 
 ## 1.0.1
 
