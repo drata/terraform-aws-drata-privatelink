@@ -82,7 +82,7 @@ A runnable example lives in [`examples/complete`](./examples/complete).
 
 Optional, and worth doing.
 
-Without it, the consumer's only address is the endpoint's generated regional name:
+Without it, the only address Drata has is the endpoint's generated regional name:
 
 ```
 vpce-0123456789abcdef0-a1b2c3d4.vpce-svc-0123456789abcdef0.eu-west-1.vpce.amazonaws.com
@@ -92,9 +92,9 @@ PrivateLink does not terminate TLS. The certificate served on that connection is
 its SAN lists your real hostname, not the `vpce` name — so any client doing normal certificate
 validation fails, and the connection only works with verification disabled.
 
-Setting `private_dns_name` to the hostname consumers already use removes that. Once AWS has
-verified you own the domain, the consumer enables private DNS on their endpoint and AWS maps
-the hostname to it inside their VPC. Your certificate matches, and neither side changes any
+Setting `private_dns_name` to the hostname Drata already uses removes that. Once AWS has
+verified you own the domain, Drata enables private DNS on its endpoint and AWS maps the
+hostname to it inside Drata's VPC. Your certificate matches, and neither side changes any
 application configuration.
 
 **Verification is public.** AWS proves ownership by resolving a TXT record on the public
@@ -102,11 +102,11 @@ internet. A private hosted zone cannot satisfy it.
 
 **The name must match your certificate.** AWS verifies that you own the *domain*. It never
 looks at your TLS certificate, and nothing reconciles the two. This module gives the NLB a TCP
-listener, so the certificate the consumer validates is the one your own service presents.
+listener, so the certificate Drata validates is the one your own service presents.
 (Swap that for a TLS listener later and it becomes the load balancer's ACM certificate instead.)
 
 So `private_dns_name` must be listed in that certificate's subject alternative names, and must
-be the exact hostname the consumer's client is configured to dial. If they differ, verification
+be the exact hostname Drata is configured to dial. If they differ, verification
 still succeeds and the name still resolves — and every handshake then fails on a name mismatch,
 at connect time rather than at apply time. Check before you set it, from a host that can reach
 the service — inside your VPC if it has no public endpoint — on whatever port it serves TLS:
@@ -116,8 +116,8 @@ $ openssl s_client -connect <your-service>:<port> -servername <private_dns_name>
     | openssl x509 -noout -subject -text | grep -A1 "Subject Alternative Name"
 ```
 
-If your certificate is issued by a private CA, the consumer additionally needs that CA in the
-trust store of whatever calls you — tell them, since nothing in this module can.
+If your certificate is issued by a private CA, Drata additionally needs that CA in the trust
+store of the service that calls you. Tell us, because nothing in this module can arrange it.
 
 **Public zone in this account** — pass its ID and the module does the rest:
 
@@ -297,7 +297,7 @@ No modules.
 | listener\_port | TCP port the NLB listens on. Consumers reach the service on this port via the interface endpoint. | `number` | `443` | no |
 | name | Base name used to prefix all resources. Keep short: it seeds NLB/target-group names (32-char AWS limit). | `string` | `"drata-privatelink"` | no |
 | nlb\_ingress\_cidrs | CIDR blocks allowed inbound to the NLB listener. Must admit the Drata CIDR for the region serving your tenant, since with enforcement on the security group matches the connecting client's private IP: us-west-2 10.0.0.0/16 (default), eu-central-1 10.2.0.0/16, ap-southeast-2 10.10.0.0/16. Confirm which applies with Drata. Append your own CIDRs if anything in your VPC reaches the listener directly. | `list(string)` | <pre>[<br/>  "10.0.0.0/16"<br/>]</pre> | no |
-| private\_dns\_name | Hostname consumers already use to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets the consumer enable private DNS, after which the name resolves to the endpoint inside their VPC and their existing TLS certificate keeps matching — without it they can only use the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. It proves ownership of the domain only, and never checks your certificate: this name must also appear in the subject alternative names of whatever terminates TLS behind your NLB, and must be the exact hostname the consumer dials, or every handshake fails on a name mismatch long after the apply succeeds. Leave null to skip private DNS entirely. | `string` | `null` | no |
+| private\_dns\_name | Hostname Drata already uses to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets Drata enable private DNS, after which the name resolves to the endpoint inside Drata's VPC and your existing TLS certificate keeps matching — without it the only usable address is the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. It proves ownership of the domain only, and never checks your certificate: this name must also appear in the subject alternative names of whatever terminates TLS behind your NLB, and must be the exact hostname Drata dials, or every handshake fails on a name mismatch long after the apply succeeds. Leave null to skip private DNS entirely. | `string` | `null` | no |
 | private\_dns\_validation\_zone\_id | Route53 zone ID of the PUBLIC hosted zone authoritative for private\_dns\_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private\_dns\_verification\_* outputs. Also leave it null on the apply that first adds a private DNS name to an endpoint service that already exists, and set it on a second apply: AWS has no verification token to hand out until the name is on the service, and the plan fails on an empty lookup until then. See the README. | `string` | `null` | no |
 | private\_dns\_verification\_timeout | How long to wait for AWS to detect the verification TXT record before failing the apply. AWS may take up to 48 hours to pick a record up, though in practice it is minutes. Matches the provider default. | `string` | `"30m"` | no |
 | supported\_ip\_address\_types | IP address types the endpoint service supports. | `list(string)` | <pre>[<br/>  "ipv4"<br/>]</pre> | no |
@@ -314,7 +314,7 @@ No modules.
 | nlb\_dns\_name | Internal DNS name of the NLB (for provider-side validation only). |
 | nlb\_security\_group\_id | Security group ID attached to the NLB. The target instance's SG must allow ingress from this SG on the target port. |
 | private\_dns\_verification\_name | Name label of the domain ownership verification TXT record, null when private\_dns\_name is not set. Publish it as <name>.<domain>, where <domain> is private\_dns\_name or any parent of it — verifying example.com also covers gitlab.example.com. |
-| private\_dns\_verification\_state | Verification state as of the last read: pendingVerification, verified or failed. Consumers cannot enable private DNS until this reads verified. Note the lag — the value is captured before verification runs, so the apply that actually verifies the domain still prints pendingVerification. Re-run plan or refresh to see it settle. |
+| private\_dns\_verification\_state | Verification state as of the last read: pendingVerification, verified or failed. Drata cannot enable private DNS until this reads verified. Note the lag — the value is captured before verification runs, so the apply that actually verifies the domain still prints pendingVerification. Re-run plan or refresh to see it settle. |
 | private\_dns\_verification\_type | Record type of the ownership verification record. Always TXT. |
 | private\_dns\_verification\_value | Value of the ownership verification TXT record. |
 | service\_availability\_zones | AZs the endpoint service is available in. The consumer's subnets must overlap these. |

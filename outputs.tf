@@ -34,7 +34,7 @@ output "private_dns_verification_value" {
 }
 
 output "private_dns_verification_state" {
-  description = "Verification state as of the last read: pendingVerification, verified or failed. Consumers cannot enable private DNS until this reads verified. Note the lag — the value is captured before verification runs, so the apply that actually verifies the domain still prints pendingVerification. Re-run plan or refresh to see it settle."
+  description = "Verification state as of the last read: pendingVerification, verified or failed. Drata cannot enable private DNS until this reads verified. Note the lag — the value is captured before verification runs, so the apply that actually verifies the domain still prints pendingVerification. Re-run plan or refresh to see it settle."
   value       = try(aws_vpc_endpoint_service.this.private_dns_name_configuration[0].state, null)
 }
 
