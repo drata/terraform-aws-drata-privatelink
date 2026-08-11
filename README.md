@@ -146,6 +146,46 @@ $ terraform output private_dns_verification_value
 `gitlab.example.com`. Once it resolves publicly, set `verify_private_dns_name = true` and
 apply again.
 
+### Adding a name to an endpoint service that already exists
+
+Setting `private_dns_name` when the service is first created works in a single apply, and is
+the normal path. Adding one to a service that **already exists** takes two, and the first
+attempt fails at plan with an error that does not explain itself:
+
+```
+Error: Invalid index
+  on private_dns.tf line 47, in resource "aws_route53_record" "private_dns_validation":
+  aws_vpc_endpoint_service.this.private_dns_name_configuration is empty list of object
+```
+
+AWS does not mint the verification token until the name is actually on the service, and the
+provider leaves `private_dns_name_configuration` at its stored empty list rather than marking it
+unknown — so the record's lookup of it resolves to nothing while still at plan. This is
+[hashicorp/terraform-provider-aws#24044](https://github.com/hashicorp/terraform-provider-aws/issues/24044),
+open and unfixed as of provider 6.58. It cannot be worked around inside the module: `try()` makes
+the plan freeze a placeholder and write the wrong record, and the `aws_vpc_endpoint_service` data
+source does not expose the token either ([#22771](https://github.com/hashicorp/terraform-provider-aws/issues/22771)).
+
+Split it across two applies. First, put the name on the service and nothing else:
+
+```hcl
+private_dns_name               = "gitlab.example.com"
+private_dns_validation_zone_id = null   # leave the record for the second apply
+```
+
+Then add the zone and apply again:
+
+```hcl
+private_dns_name               = "gitlab.example.com"
+private_dns_validation_zone_id = "Z0123456789ABCDEFGHIJ"
+```
+
+On the external-DNS path this falls out naturally: the first apply is already name-only, and
+`verify_private_dns_name = true` comes on the second.
+
+Do not reach for `-replace` on the endpoint service to force it into one apply. It works, and it
+mints a new `service_name`, which breaks every consumer already connected to you.
+
 Notes:
 
 - An endpoint service carries only one private DNS name.
@@ -258,7 +298,7 @@ No modules.
 | name | Base name used to prefix all resources. Keep short: it seeds NLB/target-group names (32-char AWS limit). | `string` | `"drata-privatelink"` | no |
 | nlb\_ingress\_cidrs | CIDR blocks allowed inbound to the NLB listener. Must admit the Drata CIDR for the region serving your tenant, since with enforcement on the security group matches the connecting client's private IP: us-west-2 10.0.0.0/16 (default), eu-central-1 10.2.0.0/16, ap-southeast-2 10.10.0.0/16. Confirm which applies with Drata. Append your own CIDRs if anything in your VPC reaches the listener directly. | `list(string)` | <pre>[<br/>  "10.0.0.0/16"<br/>]</pre> | no |
 | private\_dns\_name | Hostname consumers already use to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets the consumer enable private DNS, after which the name resolves to the endpoint inside their VPC and their existing TLS certificate keeps matching — without it they can only use the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. It proves ownership of the domain only, and never checks your certificate: this name must also appear in the subject alternative names of whatever terminates TLS behind your NLB, and must be the exact hostname the consumer dials, or every handshake fails on a name mismatch long after the apply succeeds. Leave null to skip private DNS entirely. | `string` | `null` | no |
-| private\_dns\_validation\_zone\_id | Route53 zone ID of the PUBLIC hosted zone authoritative for private\_dns\_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private\_dns\_verification\_* outputs. | `string` | `null` | no |
+| private\_dns\_validation\_zone\_id | Route53 zone ID of the PUBLIC hosted zone authoritative for private\_dns\_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private\_dns\_verification\_* outputs. Also leave it null on the apply that first adds a private DNS name to an endpoint service that already exists, and set it on a second apply: AWS has no verification token to hand out until the name is on the service, and the plan fails on an empty lookup until then. See the README. | `string` | `null` | no |
 | private\_dns\_verification\_timeout | How long to wait for AWS to detect the verification TXT record before failing the apply. AWS may take up to 48 hours to pick a record up, though in practice it is minutes. Matches the provider default. | `string` | `"30m"` | no |
 | supported\_ip\_address\_types | IP address types the endpoint service supports. | `list(string)` | <pre>[<br/>  "ipv4"<br/>]</pre> | no |
 | supported\_regions | Regions this endpoint service is available in, beyond the Region hosting it, for consumers using cross-Region access. Leave empty for the normal same-Region case. Setting this requires the vpce:AllowMultiRegion IAM permission, and the service must be enabled in at least two cross-Region-eligible Availability Zones or AWS rejects the change. The host Region is always supported and cannot be removed. | `list(string)` | `[]` | no |

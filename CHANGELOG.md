@@ -22,6 +22,11 @@ All notable changes to this module are documented here. This project follows
 - `private_dns_verification_name`, `private_dns_verification_type`,
   `private_dns_verification_value` and `private_dns_verification_state` outputs, so the
   record can be published with any DNS provider and the result checked without the console.
+- README section on adding a private DNS name to an endpoint service that already exists, which
+  takes two applies. AWS mints no verification token until the name is on the service, and the
+  provider reports the attribute as an empty list rather than as unknown, so the first plan fails
+  on an empty lookup (hashicorp/terraform-provider-aws#24044). Setting the name at creation is
+  unaffected and still applies in one go.
 - README section covering the certificate problem private DNS solves, the public-zone
   requirement, both the Route53 and external-DNS paths, and the fact that ownership
   verification checks the domain and never the certificate — so `private_dns_name` must also

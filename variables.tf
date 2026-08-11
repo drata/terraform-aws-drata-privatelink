@@ -140,7 +140,7 @@ variable "private_dns_name" {
 }
 
 variable "private_dns_validation_zone_id" {
-  description = "Route53 zone ID of the PUBLIC hosted zone authoritative for private_dns_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private_dns_verification_* outputs."
+  description = "Route53 zone ID of the PUBLIC hosted zone authoritative for private_dns_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private_dns_verification_* outputs. Also leave it null on the apply that first adds a private DNS name to an endpoint service that already exists, and set it on a second apply: AWS has no verification token to hand out until the name is on the service, and the plan fails on an empty lookup until then. See the README."
   type        = string
   default     = null
 
