@@ -3,6 +3,36 @@
 All notable changes to this module are documented here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.2
+
+### Added
+
+- `private_dns_name` — associate the hostname consumers already use with the endpoint
+  service. Without it the consumer can only address the endpoint's generated name, which
+  no TLS certificate covers, so certificate validation has to be disabled to connect.
+- `private_dns_validation_zone_id` — when the domain's **public** Route53 zone is in this
+  account, the module creates the ownership-verification TXT record itself. AWS resolves
+  that record over the public internet, so a private hosted zone cannot satisfy it.
+- `verify_private_dns_name` — triggers AWS's domain ownership check during apply and waits
+  for it, instead of leaving the service in `pendingVerification` until someone notices.
+  Defaults to true when `private_dns_validation_zone_id` is set; set it explicitly once the
+  record has been published by hand when DNS is hosted elsewhere.
+- `private_dns_verification_timeout` — how long to wait for that check. Defaults to `30m`,
+  matching the provider.
+- `private_dns_verification_name`, `private_dns_verification_type`,
+  `private_dns_verification_value` and `private_dns_verification_state` outputs, so the
+  record can be published with any DNS provider and the result checked without the console.
+- README section on adding a private DNS name to an endpoint service that already exists, which
+  takes two applies. AWS mints no verification token until the name is on the service, and the
+  provider reports the attribute as an empty list rather than as unknown, so the first plan fails
+  on an empty lookup (hashicorp/terraform-provider-aws#24044). Setting the name at creation is
+  unaffected and still applies in one go.
+- README section covering the certificate problem private DNS solves, the public-zone
+  requirement, both the Route53 and external-DNS paths, and the fact that ownership
+  verification checks the domain and never the certificate — so `private_dns_name` must also
+  appear in the SAN of whatever terminates TLS behind the NLB, and be the exact hostname the
+  consumer dials. A mismatch verifies and resolves cleanly, then fails every handshake.
+
 ## 1.0.1
 
 ### Fixed

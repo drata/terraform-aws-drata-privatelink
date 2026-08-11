@@ -14,14 +14,20 @@ concurrency:
 
 jobs:
   validate:
-    name: fmt & validate
+    name: fmt & validate (${{ matrix.terraform_version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor declared in versions.tf, and the current release. Without the floor
+        # nothing catches a construct that is newer than the version this module promises.
+        terraform_version: ["1.5.7", "latest"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: latest
+          terraform_version: ${{ matrix.terraform_version }}
 
       - name: terraform fmt
         run: terraform fmt -check -recursive -diff

@@ -29,6 +29,20 @@ allowed_principals = [
 # Set "off" if Drata CIDR overlaps your VPC, or if you cannot allow it.
 # enforce_security_group_inbound_rules_on_private_link_traffic = "on"
 
+# Private DNS (optional). Lets Drata keep using your existing hostname, so your
+# TLS certificate still matches. AWS proves you own the domain with a TXT record
+# it resolves over the PUBLIC internet — a private hosted zone will not work.
+#
+# Public zone in this account: the module writes and verifies the record.
+# private_dns_name               = "gitlab.example.com"
+# private_dns_validation_zone_id = "Z0123456789ABCDEFGHIJ"
+#
+# DNS hosted elsewhere: apply once with only private_dns_name set, publish
+#   terraform output private_dns_verification_name  ->  _abc123
+#   terraform output private_dns_verification_value ->  vpce:XXXXXXXX
+# as _abc123.example.com TXT "vpce:XXXXXXXX", then set:
+# verify_private_dns_name = true
+
 tags = {
   Project = "privatelink"
 }

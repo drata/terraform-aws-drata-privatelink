@@ -117,6 +117,56 @@ variable "supported_ip_address_types" {
   default     = ["ipv4"]
 }
 
+# ---------------------------------------------------------------------------
+# Private DNS name (optional)
+# ---------------------------------------------------------------------------
+variable "private_dns_name" {
+  description = "Hostname Drata already uses to reach this service, e.g. gitlab.example.com. Associating it with the endpoint service lets Drata enable private DNS, after which the name resolves to the endpoint inside Drata's VPC and your existing TLS certificate keeps matching — without it the only usable address is the endpoint's generated name, which no certificate covers. AWS will not serve the name until you have proved you own the domain. It proves ownership of the domain only, and never checks your certificate: this name must also appear in the subject alternative names of whatever terminates TLS behind your NLB, and must be the exact hostname Drata dials, or every handshake fails on a name mismatch long after the apply succeeds. Leave null to skip private DNS entirely."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.private_dns_name == null
+      ? true
+      : (
+        can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$", var.private_dns_name))
+        && length(var.private_dns_name) <= 255
+        && alltrue([for label in split(".", var.private_dns_name) : length(label) <= 63])
+      )
+    )
+    error_message = "private_dns_name must be a lowercase fully qualified domain name, at most 255 characters with labels of at most 63, e.g. gitlab.example.com. Use null rather than an empty string to skip private DNS."
+  }
+}
+
+variable "private_dns_validation_zone_id" {
+  description = "Route53 zone ID of the PUBLIC hosted zone authoritative for private_dns_name, when that zone is in this AWS account. The module then creates the ownership-verification TXT record for you. AWS resolves that record over the public internet, so a private hosted zone cannot satisfy it. Leave null if your DNS is hosted anywhere else — publish the record yourself from the private_dns_verification_* outputs. Also leave it null on the apply that first adds a private DNS name to an endpoint service that already exists, and set it on a second apply: AWS has no verification token to hand out until the name is on the service, and the plan fails on an empty lookup until then. See the README."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.private_dns_validation_zone_id == null || can(regex("^Z[A-Z0-9]+$", var.private_dns_validation_zone_id))
+    error_message = "private_dns_validation_zone_id must be a Route53 hosted zone ID such as Z0123456789ABCDEFGHIJ, or null to publish the verification record yourself."
+  }
+}
+
+variable "verify_private_dns_name" {
+  description = "Whether to have AWS verify domain ownership during apply. Defaults to true when private_dns_validation_zone_id is set, since the TXT record is then created here. If your DNS is hosted elsewhere, leave this null for the first apply, publish the record from the outputs, then set it to true — verification fails while the record is not publicly resolvable."
+  type        = bool
+  default     = null
+}
+
+variable "private_dns_verification_timeout" {
+  description = "How long to wait for AWS to detect the verification TXT record before failing the apply. AWS may take up to 48 hours to pick a record up, though in practice it is minutes. Matches the provider default."
+  type        = string
+  default     = "30m"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*(s|m|h)$", var.private_dns_verification_timeout))
+    error_message = "private_dns_verification_timeout must be a whole number of seconds, minutes or hours, e.g. 30m, 90s or 2h."
+  }
+}
+
 variable "tags" {
   description = "Tags applied to all created resources."
   type        = map(string)
