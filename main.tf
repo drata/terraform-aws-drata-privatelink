@@ -141,12 +141,12 @@ resource "aws_vpc_endpoint_service" "this" {
   # silent no-ops, which is worse than failing.
   lifecycle {
     precondition {
-      condition     = var.private_dns_validation_zone_id == null || var.private_dns_name != null
+      condition     = var.private_dns_validation_zone_id == null || local.private_dns_name_set
       error_message = "private_dns_name must be set when private_dns_validation_zone_id is provided."
     }
 
     precondition {
-      condition     = var.verify_private_dns_name != true || var.private_dns_name != null
+      condition     = var.verify_private_dns_name != true || local.private_dns_name_set
       error_message = "private_dns_name must be set when verify_private_dns_name is true."
     }
   }
